@@ -16,7 +16,7 @@ Pass a `credit` instance, which know how to provide current credits balance and
 deduct credits into `RTBill`. It can be instance of any class as long as 2 methods
 defined:-
 
-    - `get_balance()`
-    - `deduct(amount)`
+    - get_balance()
+    - deduct(amount)
 
 2 credit class are provided - DBAPICredit and DjangoCredit.
