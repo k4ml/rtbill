@@ -1,0 +1,4 @@
+{
+    "workbench.colorTheme": "Visual Studio Dark",
+    "python.pythonPath": "${workspaceRoot}/.venv/bin/python3"
+}
