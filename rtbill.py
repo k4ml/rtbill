@@ -49,6 +49,23 @@ class DBAPICredit(object):
                        "WHERE {account_id} = {account}".format(**params))
         self.conn.commit()
 
+class DjangoCredit(object):
+    def __init__(self, instance, credit_attr):
+        self.instance = instance
+        self.credit_attr = credit_attr
+
+    def get_balance(self):
+        self.instance.refresh_from_db()
+        return getattr(self.instance, self.credit_attr)
+
+    def deduct(self, amount):
+        from django.db.models import F
+        previous_balance = self.get_balance()
+        setattr(self.instance, self.credit_attr, F(self.credit_attr) - amount)
+        self.instance.save()
+        current_balance = self.get_balance()
+        logger.info('amount:{} previous:{} current:{}'.format(amount, previous_balance,
+                    current_balance))
 
 class RTBill(object):
     def __init__(self, credit, rate=1, increment=60, stop_callback=None):
