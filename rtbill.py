@@ -20,35 +20,19 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-class RTBill(object):
-    def __init__(self, conn, table, column, account, account_id,
-                 rate=1, increment=60, stop_callback=None):
+class DBAPICredit(object):
+    def __init__(self, conn, table, column, account_id, account):
         self.conn = conn
         self.table = table
         self.column = column
-        self.account = account
         self.account_id = account_id
-        self.increment = increment
-        self.rate = rate
-        self.total_billed = 0
-        self.duration = 0
-        self.actions = queue.Queue()
+        self.account = account
         self._params = {
             'column': self.column,
             'table': self.table,
             'account_id': self.account_id,
             'account': self.account,
         }
-
-        def _default_stop_callback():
-            params = (self.duration, self.total_billed)
-            print('done, duration:{} total_billed:{}'.format(params))
-        self.stop_callback = stop_callback or _default_stop_callback
-
-    def start(self):
-        self.thread = threading.Thread(target=self._start_billing)
-        self.thread.daemon = True
-        self.thread.start()
 
     def get_balance(self):
         params = self._params
@@ -59,11 +43,36 @@ class RTBill(object):
     
     def deduct(self, rate):
         params = self._params
-        params['rate'] = self.rate
+        params['rate'] = rate
         cursor = self.conn.cursor()
         cursor.execute("UPDATE {table} SET {column} = {column} - {rate} "
                        "WHERE {account_id} = {account}".format(**params))
         self.conn.commit()
+
+
+class RTBill(object):
+    def __init__(self, credit, rate=1, increment=60, stop_callback=None):
+        """
+        credit should be an instance with 2 methods:-
+            - get_balance()
+            - deduct(amount)
+        """
+        self.credit = credit
+        self.increment = increment
+        self.rate = rate
+        self.total_billed = 0
+        self.duration = 0
+        self.actions = queue.Queue()
+
+        def _default_stop_callback():
+            params = (self.duration, self.total_billed)
+            print('done, duration:{} total_billed:{}'.format(params))
+        self.stop_callback = stop_callback or _default_stop_callback
+
+    def start(self):
+        self.thread = threading.Thread(target=self._start_billing)
+        self.thread.daemon = True
+        self.thread.start()
 
     def _start_billing(self):
         max_duration = 120 # set max_duration based on credits balance
@@ -78,14 +87,14 @@ class RTBill(object):
                 if self.duration % self.increment == 0:
                     extra_seconds = 0
                     print("Duration: %d" % (self.duration) )
-                    balance = self.get_balance()
+                    balance = self.credit.get_balance()
                     if balance < 0:
                         logger.info('Out of credits')
                         self.stop_callback()
                         return
                     logger.info('Duration:%s deducting credits current:%s rate:%s' %
                                 (self.duration, balance, self.rate))
-                    self.deduct(self.rate)
+                    self.credit.deduct(self.rate)
                     self.total_billed += self.rate
                 else:
                     extra_seconds += 1
@@ -97,7 +106,7 @@ class RTBill(object):
         print("Billing done, duration:", self.duration)
         if extra_seconds > 0:
             logger.info('Charging for extra seconds:%s' % extra_seconds)
-            self.deduct(self.rate)
+            self.credit.deduct(self.rate)
             self.total_billed += self.rate
 
     def stop(self):
