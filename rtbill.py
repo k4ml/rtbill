@@ -120,7 +120,7 @@ class RTBill(object):
                     print('got action stop')
                     break
 
-        print("Billing done, duration:", self.duration)
+        print("Billing done, duration:", self.duration, 'extra_seconds:', extra_seconds)
         if extra_seconds > 0:
             logger.info('Charging for extra seconds:%s' % extra_seconds)
             self.credit.deduct(self.rate)
